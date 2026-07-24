@@ -9,18 +9,18 @@ interface SqlEditorModalProps {
 }
 
 const SQL_SCRIPT = `-- ====================================================================
--- CHERRY Math Bar - Supabase SQL Editor 실행 쿼리문
+-- CHERRY Math Bar - Supabase SQL Editor 실행 쿼리문 (5개 점 관통 다항함수)
 -- 이 SQL 스크립트를 Supabase 대시보드의 [SQL Editor]에 붙여넣고 [Run]을 누르세요.
 -- ====================================================================
 
 -- 1. graph_records 테이블 생성 (존재하지 않는 경우)
 CREATE TABLE IF NOT EXISTS public.graph_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    title VARCHAR(255) NOT NULL DEFAULT '무작위 5개 점 좌표 함수',
-    func_type VARCHAR(50) NOT NULL, -- 'monic_quartic', 'monic_cubic', 'exact_quartic'
+    title VARCHAR(255) NOT NULL DEFAULT '5개 순서쌍 관통 다항함수',
+    func_type VARCHAR(50) NOT NULL, -- 'exact_quartic', 'general_cubic', 'monic_quartic'
     formula TEXT NOT NULL,
     points JSONB NOT NULL, -- [{x: -2, y: 3}, ...]
-    coefficients JSONB NOT NULL, -- [1, a, b, c, d]
+    coefficients JSONB NOT NULL, -- [a_4, a_3, a_2, a_1, a_0]
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

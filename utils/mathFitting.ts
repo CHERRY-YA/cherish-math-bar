@@ -3,7 +3,7 @@ export interface Point {
   y: number;
 }
 
-export type FuncType = "monic_quartic" | "monic_cubic" | "exact_quartic";
+export type FuncType = "exact_quartic" | "general_cubic" | "monic_quartic";
 
 export interface FitResult {
   funcType: FuncType;
@@ -14,30 +14,29 @@ export interface FitResult {
 }
 
 /**
- * NxN 선형 방정식 AX = B 가우스 소거법 풀이
+ * NxN 선형 방정식 AX = B 가우스 소거법 (Partial Pivoting)
+ * 5개 점을 정확히 100% 관통하는 다항식 계수 산출용
  */
 function solveLinearSystem(A: number[][], B: number[]): number[] {
   const n = A.length;
   const M: number[][] = A.map((row, i) => [...row, B[i]]);
 
   for (let i = 0; i < n; i++) {
-    // 부분 피벗 선택
+    // 피벗팅 (최대 절대값 행 찾기)
     let maxRow = i;
     for (let k = i + 1; k < n; k++) {
       if (Math.abs(M[k][i]) > Math.abs(M[maxRow][i])) {
         maxRow = k;
       }
     }
-    // 행 교환
     const temp = M[i];
     M[i] = M[maxRow];
     M[maxRow] = temp;
 
     if (Math.abs(M[i][i]) < 1e-12) {
-      continue; // 다중 해 또는 주피벗 0 처리
+      continue;
     }
 
-    // 소거 과정
     for (let k = i + 1; k < n; k++) {
       const factor = M[k][i] / M[i][i];
       for (let j = i; j <= n; j++) {
@@ -46,7 +45,6 @@ function solveLinearSystem(A: number[][], B: number[]): number[] {
     }
   }
 
-  // 후진 대입법
   const x = new Array(n).fill(0);
   for (let i = n - 1; i >= 0; i--) {
     let sum = M[i][n];
@@ -65,7 +63,6 @@ function solveLeastSquares(X: number[][], Z: number[]): number[] {
   const rows = X.length;
   const cols = X[0].length;
 
-  // At * A (cols x cols)
   const AtA: number[][] = Array.from({ length: cols }, () => new Array(cols).fill(0));
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < cols; j++) {
@@ -77,7 +74,6 @@ function solveLeastSquares(X: number[][], Z: number[]): number[] {
     }
   }
 
-  // At * Z (cols x 1)
   const AtZ: number[] = new Array(cols).fill(0);
   for (let i = 0; i < cols; i++) {
     let sum = 0;
@@ -91,7 +87,8 @@ function solveLeastSquares(X: number[][], Z: number[]): number[] {
 }
 
 /**
- * 계수 배열을 예쁜 수학 수식 문자열로 변환 (예: f(x) = x⁴ - 2.5x³ + 3.2x - 5)
+ * 다항식 계수를 읽기 쉬운 표준 수학 수식 문자열로 포맷팅
+ * 예: f(x) = 0.15x⁴ - 1.2x³ + 2.5x² - 0.8x + 3
  */
 export function formatPolynomial(coeffs: number[]): string {
   const degree = coeffs.length - 1;
@@ -108,9 +105,13 @@ export function formatPolynomial(coeffs: number[]): string {
     const coeff = coeffs[i];
     const power = degree - i;
 
-    // 소수점 2자리 반올림
-    const roundedCoeff = Math.round(coeff * 100) / 100;
-    if (Math.abs(roundedCoeff) < 0.001) continue;
+    // 소수점 2자리 반올림 (계수가 아주 작으면 3자리)
+    let roundedCoeff = Math.round(coeff * 100) / 100;
+    if (Math.abs(roundedCoeff) < 0.01 && Math.abs(coeff) > 0.0001) {
+      roundedCoeff = Math.round(coeff * 1000) / 1000;
+    }
+
+    if (Math.abs(roundedCoeff) < 0.0001) continue;
 
     let sign = "";
     if (terms.length === 0) {
@@ -137,56 +138,10 @@ export function formatPolynomial(coeffs: number[]): string {
 }
 
 /**
- * 1. 최고차항의 계수가 1인 사차함수 피팅 (f(x) = x⁴ + ax³ + bx² + cx + d)
- */
-export function fitMonicQuartic(points: Point[]): FitResult {
-  // y_i - x_i^4 = a x_i^3 + b x_i^2 + c x_i + d
-  const X: number[][] = points.map((p) => [Math.pow(p.x, 3), Math.pow(p.x, 2), p.x, 1]);
-  const Z: number[] = points.map((p) => p.y - Math.pow(p.x, 4));
-
-  const [a, b, c, d] = solveLeastSquares(X, Z);
-  const coeffs = [1, a, b, c, d];
-
-  const evaluate = (x: number) =>
-    Math.pow(x, 4) + a * Math.pow(x, 3) + b * Math.pow(x, 2) + c * x + d;
-
-  return {
-    funcType: "monic_quartic",
-    title: "최고차항 계수가 1인 사차함수",
-    coefficients: coeffs,
-    formula: formatPolynomial(coeffs),
-    evaluate,
-  };
-}
-
-/**
- * 2. 최고차항의 계수가 1인 삼차함수 피팅 (f(x) = x³ + ax² + bx + c)
- */
-export function fitMonicCubic(points: Point[]): FitResult {
-  // y_i - x_i^3 = a x_i^2 + b x_i + c
-  const X: number[][] = points.map((p) => [Math.pow(p.x, 2), p.x, 1]);
-  const Z: number[] = points.map((p) => p.y - Math.pow(p.x, 3));
-
-  const [a, b, c] = solveLeastSquares(X, Z);
-  const coeffs = [1, a, b, c];
-
-  const evaluate = (x: number) =>
-    Math.pow(x, 3) + a * Math.pow(x, 2) + b * x + c;
-
-  return {
-    funcType: "monic_cubic",
-    title: "최고차항 계수가 1인 삼차함수",
-    coefficients: coeffs,
-    formula: formatPolynomial(coeffs),
-    evaluate,
-  };
-}
-
-/**
- * 3. 5개 점을 정확히 연결하는 일반 4차 다항함수 피팅 (f(x) = a4 x⁴ + a3 x³ + a2 x² + a1 x + a0)
+ * 1. 5개 점을 100% 정확하게 관통하는 사차함수 (f(x) = a x⁴ + b x³ + c x² + d x + e)
+ * 5개의 무작위 점 (x_i, y_i)를 통과하도록 5x5 선형 연립방정식 해를 산출합니다.
  */
 export function fitExactQuartic(points: Point[]): FitResult {
-  const n = points.length; // 5
   const A: number[][] = points.map((p) => [
     Math.pow(p.x, 4),
     Math.pow(p.x, 3),
@@ -204,7 +159,57 @@ export function fitExactQuartic(points: Point[]): FitResult {
 
   return {
     funcType: "exact_quartic",
-    title: "5개 점을 지나는 4차 다항함수 (일반)",
+    title: "5개 점 관통 사차함수 (a x⁴ + b x³ + c x² + d x + e)",
+    coefficients: coeffs,
+    formula: formatPolynomial(coeffs),
+    evaluate,
+  };
+}
+
+/**
+ * 2. 일반 삼차함수 피팅 (f(x) = a x³ + b x² + c x + d)
+ * 최고차항 계수 제한 없이 5개 점에 대해 가장 가깝게 지나가는 최적 삼차함수를 도출합니다.
+ */
+export function fitGeneralCubic(points: Point[]): FitResult {
+  const X: number[][] = points.map((p) => [
+    Math.pow(p.x, 3),
+    Math.pow(p.x, 2),
+    p.x,
+    1,
+  ]);
+  const Z: number[] = points.map((p) => p.y);
+
+  const coeffs = solveLeastSquares(X, Z);
+
+  const evaluate = (x: number) => {
+    return coeffs.reduce((acc, c, idx) => acc + c * Math.pow(x, 3 - idx), 0);
+  };
+
+  return {
+    funcType: "general_cubic",
+    title: "일반 삼차함수 (a x³ + b x² + c x + d)",
+    coefficients: coeffs,
+    formula: formatPolynomial(coeffs),
+    evaluate,
+  };
+}
+
+/**
+ * 3. 최고차항 계수가 1인 사차함수 피팅 (f(x) = x⁴ + a x³ + b x² + c x + d)
+ */
+export function fitMonicQuartic(points: Point[]): FitResult {
+  const X: number[][] = points.map((p) => [Math.pow(p.x, 3), Math.pow(p.x, 2), p.x, 1]);
+  const Z: number[] = points.map((p) => p.y - Math.pow(p.x, 4));
+
+  const [a, b, c, d] = solveLeastSquares(X, Z);
+  const coeffs = [1, a, b, c, d];
+
+  const evaluate = (x: number) =>
+    Math.pow(x, 4) + a * Math.pow(x, 3) + b * Math.pow(x, 2) + c * x + d;
+
+  return {
+    funcType: "monic_quartic",
+    title: "최고차항 계수 1 사차함수 (x⁴ + a x³ + b x² + c x + d)",
     coefficients: coeffs,
     formula: formatPolynomial(coeffs),
     evaluate,

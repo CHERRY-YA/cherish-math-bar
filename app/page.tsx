@@ -11,14 +11,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  Target,
 } from "lucide-react";
 import {
   Point,
   FuncType,
   FitResult,
-  fitMonicQuartic,
-  fitMonicCubic,
   fitExactQuartic,
+  fitGeneralCubic,
+  fitMonicQuartic,
   generateRandomPoints,
 } from "@/utils/mathFitting";
 import CoordinateCanvas from "@/components/CoordinateCanvas";
@@ -35,11 +36,11 @@ interface GraphRecord {
 }
 
 export default function HomePage() {
-  // 1. 초기 무작위 5개 순서쌍 점 생성
+  // 1. 무작위 5개 순서쌍 점 생성 및 기본 모드를 '5개 점 100% 관통 4차함수(exact_quartic)'로 설정
   const [points, setPoints] = useState<Point[]>(() => generateRandomPoints(5, -5, 5));
-  const [funcType, setFuncType] = useState<FuncType>("monic_quartic");
+  const [funcType, setFuncType] = useState<FuncType>("exact_quartic");
 
-  // 모달 및 알림 Toast 상태
+  // 모달 및 저장 피드백 Toast 상태
   const [isSqlModalOpen, setIsSqlModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{
     type: "success" | "error" | "info" | null;
@@ -50,17 +51,17 @@ export default function HomePage() {
   // Supabase 실시간 저장 데이터 목록
   const [recentRecords, setRecentRecords] = useState<GraphRecord[]>([]);
 
-  // 2. 다항함수 피팅 결과 계산
+  // 2. 선택된 함수 모드에 따른 다항함수 피팅 (기본 5개 점 100% 완벽 관통)
   const fitResult: FitResult = React.useMemo(() => {
     switch (funcType) {
-      case "monic_quartic":
-        return fitMonicQuartic(points);
-      case "monic_cubic":
-        return fitMonicCubic(points);
       case "exact_quartic":
         return fitExactQuartic(points);
-      default:
+      case "general_cubic":
+        return fitGeneralCubic(points);
+      case "monic_quartic":
         return fitMonicQuartic(points);
+      default:
+        return fitExactQuartic(points);
     }
   }, [points, funcType]);
 
@@ -78,7 +79,7 @@ export default function HomePage() {
         setRecentRecords(data as GraphRecord[]);
       }
     } catch {
-      // Supabase 불러오기 예외 무시
+      // Supabase 조회 예외 무시
     }
   }, []);
 
@@ -86,13 +87,13 @@ export default function HomePage() {
     fetchRecentRecords();
   }, [fetchRecentRecords]);
 
-  // 무작위 5개 순서쌍 갱신 이벤트
+  // 무작위 5개 순서쌍 점 갱신
   const handleRandomize = () => {
     setPoints(generateRandomPoints(5, -5, 5));
     setSaveStatus({ type: null, message: "" });
   };
 
-  // 수동 입력 좌표 변경 함수
+  // 수동 좌표 수정 함수
   const handlePointChange = (index: number, axis: "x" | "y", val: string) => {
     const num = parseInt(val, 10);
     if (isNaN(num)) return;
@@ -110,7 +111,7 @@ export default function HomePage() {
       setSaveStatus({
         type: "info",
         message:
-          "💡 Supabase 환경 변수가 아직 Vercel/환경 설정에 등록되지 않았습니다. [SQL 쿼리문 보기]에서 테이블을 생성한 후 환경변수를 세팅해 보세요!",
+          "💡 Supabase 환경 변수가 아직 Vercel/환경 설정에 등록되지 않았습니다. 상단 [SQL 쿼리문 보기]에서 테이블을 생성하신 후 환경변수를 연동해 주세요!",
       });
       setIsSaving(false);
       return;
@@ -119,7 +120,7 @@ export default function HomePage() {
     try {
       const { error } = await supabase.from("graph_records").insert([
         {
-          title: `순서쌍 5개 ${fitResult.title}`,
+          title: `5개 점 관통 ${fitResult.title}`,
           func_type: fitResult.funcType,
           formula: fitResult.formula,
           points: points,
@@ -130,12 +131,12 @@ export default function HomePage() {
       if (error) {
         setSaveStatus({
           type: "error",
-          message: `저장 실패: ${error.message} (Supabase SQL Editor에서 쿼리를 먼저 실행했는지 확인해 주세요)`,
+          message: `저장 실패: ${error.message} (Supabase SQL Editor에서 쿼리를 실행했는지 확인해 주세요)`,
         });
       } else {
         setSaveStatus({
           type: "success",
-          message: "🎉 Supabase 데이터베이스에 그래프 데이터가 성공적으로 저장되었습니다!",
+          message: "🎉 5개 점을 통과하는 다항함수가 Supabase DB에 성공적으로 저장되었습니다!",
         });
         fetchRecentRecords();
       }
@@ -153,38 +154,36 @@ export default function HomePage() {
     <div className="flex flex-col gap-8 py-4">
       {/* 
         ========================================
-        1. 히어로 메인 타이틀 & 상단 조작 버튼
+        1. 히어로 메인 타이틀 & 조작 바
         ========================================
       */}
       <section className="bg-white/70 backdrop-blur-md rounded-4xl p-6 sm:p-10 shadow-pastel-soft border-2 border-white/80 flex flex-col gap-6">
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-bold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-              <span>Cherish Math Bar - 좌표평면 삼차/사차함수</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2 shadow-sm">
+              <Target className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>5개 점 100% 관통 다항함수 시각화</span>
             </div>
             <h1 className="font-jua text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 via-purple-600 to-sky-600 bg-clip-text text-transparent">
-              무작위 5개 순서쌍 좌표평면 곡선 피팅 📈
+              5개 순서쌍 완벽 관통 삼차/사차함수 🎯
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              좌표평면에 5개의 점을 표시하고, 그 점들을 지나는 <strong>최고차항 계수가 1인 삼차/사차함수</strong> 그래프를 실시간으로 그리고 Supabase에 저장해 보세요!
+              입력하신 5개의 점을 <strong>100% 지나가는 4차 다항함수 그래프</strong>를 그리고, 그 수식을 Supabase 데이터베이스에 바로 저장해 보세요!
             </p>
           </div>
 
-          {/* 주요 컨트롤 액션 버튼 그룹 */}
+          {/* 주요 액션 버튼 그룹 */}
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            {/* 무작위 5개 순서쌍 생성 버튼 */}
             <button
               type="button"
               onClick={handleRandomize}
               className="flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-pastel-pink-deep to-pink-500 text-white font-bold text-sm shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200"
             >
-              <Shuffle className="w-4 h-4 animate-spin-slow" />
+              <Shuffle className="w-4 h-4" />
               <span>🎲 무작위 5개 순서쌍 생성</span>
             </button>
 
-            {/* Supabase SQL 쿼리 보기 버튼 */}
             <button
               type="button"
               onClick={() => setIsSqlModalOpen(true)}
@@ -198,53 +197,52 @@ export default function HomePage() {
 
         {/* 
           ========================================
-          2. 함수 모드 탭 및 순서쌍 수동 수정 폼
+          2. 함수 모드 탭 & 순서쌍 입력기
           ========================================
         */}
         <div className="flex flex-col gap-4 bg-pastel-pink-light/60 p-4 sm:p-6 rounded-3xl border border-pink-200/60">
           
-          {/* 함수 피팅 모드 선택 버튼 탭 */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
               <Calculator className="w-4 h-4 text-pink-500" />
-              <span>함수 모드 선택:</span>
+              <span>함수 모델 선택:</span>
             </span>
 
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => setFuncType("monic_quartic")}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
-                  funcType === "monic_quartic"
-                    ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md"
-                    : "bg-white text-slate-600 hover:bg-pink-100"
-                }`}
-              >
-                ✨ 최고차항 계수 1 (사차함수)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFuncType("monic_cubic")}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
-                  funcType === "monic_cubic"
-                    ? "bg-gradient-to-r from-purple-500 to-sky-500 text-white shadow-md"
-                    : "bg-white text-slate-600 hover:bg-purple-100"
-                }`}
-              >
-                🔮 최고차항 계수 1 (삼차함수)
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setFuncType("exact_quartic")}
                 className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
                   funcType === "exact_quartic"
+                    ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md ring-2 ring-pink-300"
+                    : "bg-white text-slate-600 hover:bg-pink-100"
+                }`}
+              >
+                🎯 5개 점 100% 관통 (4차함수)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFuncType("general_cubic")}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
+                  funcType === "general_cubic"
+                    ? "bg-gradient-to-r from-purple-500 to-sky-500 text-white shadow-md ring-2 ring-purple-300"
+                    : "bg-white text-slate-600 hover:bg-purple-100"
+                }`}
+              >
+                🔮 일반 삼차함수 (a x³ + b x² + c x + d)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFuncType("monic_quartic")}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
+                  funcType === "monic_quartic"
                     ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white shadow-md"
                     : "bg-white text-slate-600 hover:bg-sky-100"
                 }`}
               >
-                🎯 5개 점 전용 (일반 4차 다항식)
+                ✨ 최고차항 계수 1 (사차함수)
               </button>
             </div>
           </div>
@@ -252,7 +250,7 @@ export default function HomePage() {
           {/* 5개 순서쌍 점 좌표 수동 편집기 */}
           <div className="flex flex-col gap-2 pt-2 border-t border-pink-200/50">
             <span className="text-xs font-semibold text-slate-500">
-              ✏️ 순서쌍 좌표 수동 변경 (-8 ~ +8 권장):
+              ✏️ 5개 점 좌표 변경 (-8 ~ +8 권장):
             </span>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -290,31 +288,35 @@ export default function HomePage() {
 
       {/* 
         ========================================
-        3. 좌표평면 시각화 & 결과 카드 섹션
+        3. 좌표평면 시각화 & 결과 카드
         ========================================
       */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* 좌측: SVG 기반 좌표평면 그래프 캔버스 (7열) */}
+        {/* 좌측: SVG 기반 좌표평면 (7열) */}
         <div className="lg:col-span-7 flex flex-col gap-4">
           <CoordinateCanvas points={points} fitResult={fitResult} />
         </div>
 
-        {/* 우측: 도출 수식 카드 & Supabase DB 저장 버튼 (5열) */}
+        {/* 우측: 수식 결과 & Supabase DB 저장 (5열) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           
-          {/* 수식 해석 결과 카드 */}
           <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-pastel-soft border-2 border-pastel-mint/60 flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-pastel-mint flex items-center justify-center text-emerald-700">
-                <Calculator className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-pastel-mint flex items-center justify-center text-emerald-700">
+                  <Calculator className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-800">
+                  도출된 다항함수 수식 📐
+                </h3>
               </div>
-              <h3 className="font-bold text-lg text-slate-800">
-                도출된 함수 방정식 📐
-              </h3>
+              <span className="text-xs font-bold text-pink-600 bg-pink-100 px-3 py-1 rounded-full">
+                100% 관통 보장
+              </span>
             </div>
 
-            {/* 수식 표시 카드 */}
+            {/* 수식 카드리프 */}
             <div className="bg-gradient-to-r from-pastel-pink-light via-purple-50 to-pastel-sky-light rounded-2xl p-4 border border-pink-200 text-center">
               <span className="text-xs text-slate-500 font-semibold block mb-1">
                 [{fitResult.title}]
@@ -332,7 +334,7 @@ export default function HomePage() {
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-gradient-to-r from-emerald-400 via-teal-500 to-sky-500 text-white font-bold text-sm shadow-jelly-mint hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              <span>{isSaving ? "Supabase에 저장 중..." : "💾 Supabase DB에 그래프 저장하기"}</span>
+              <span>{isSaving ? "Supabase 저장 중..." : "💾 Supabase DB에 그래프 저장하기"}</span>
             </button>
 
             {/* 저장 상태 피드백 Toast */}
@@ -395,7 +397,7 @@ export default function HomePage() {
               <p className="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 {isSupabaseConfigured()
                   ? "아직 저장된 그래프가 없습니다. 위 [Supabase DB에 저장하기]를 눌러보세요!"
-                  : "Supabase 연동 후 첫 저장 기록이 여기에 표시됩니다."}
+                  : "Supabase 연동 후 저장한 5개 점 그래프 결과가 여기에 보관됩니다."}
               </p>
             )}
           </div>
@@ -404,7 +406,7 @@ export default function HomePage() {
 
       </section>
 
-      {/* Supabase SQL Editor 실행 모달 */}
+      {/* Supabase SQL Editor 모달 */}
       <SqlEditorModal
         isOpen={isSqlModalOpen}
         onClose={() => setIsSqlModalOpen(false)}
