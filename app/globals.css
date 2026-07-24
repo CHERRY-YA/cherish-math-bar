@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-jua: 'Jua', sans-serif;
+}
+
+body {
+  color: #4A4A6A;
+  background: linear-gradient(135deg, #FFF0F6 0%, #F3E8FF 50%, #E8F9F5 100%);
+  min-height: 100vh;
+  font-family: var(--font-jua), system-ui, -apple-system, sans-serif;
+}
+
+/* 솜사탕처럼 커스텀 스크롤바 */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #FFF0F6;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFB7D5;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF99C8;
+}
+
+/* 텍스트 드래그 시 귀여운 파스텔 핑크 스타일 */
+::selection {
+  background-color: #FFD6E8;
+  color: #9C27B0;
+}
