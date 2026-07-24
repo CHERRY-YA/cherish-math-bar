@@ -14,6 +14,7 @@ import {
   Target,
   LineChart,
   ChevronDown,
+  Bot,
 } from "lucide-react";
 import {
   Point,
@@ -27,6 +28,7 @@ import {
 } from "@/utils/mathFitting";
 import CoordinateCanvas from "@/components/CoordinateCanvas";
 import SqlEditorModal from "@/components/SqlEditorModal";
+import MathChatbot from "@/components/MathChatbot";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 
 interface GraphRecord {
@@ -107,9 +109,9 @@ export default function HomePage() {
     setPoints(newPoints);
   };
 
-  // '함수의 그래프 알아보기' 버튼 클릭 시 프로그램 영역으로 부드러운 스크롤 이동
-  const scrollToGraphProgram = () => {
-    const element = document.getElementById("graph-explorer");
+  // '함수의 그래프 알아보기' 버튼 클릭 시 하단 프로그램 영역으로 이동
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
     }
@@ -164,17 +166,17 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col gap-10 py-4">
+    <div className="flex flex-col gap-12 py-4">
       {/* 
         ========================================
-        1. 히어로 최상단 배너 & "함수의 그래프 알아보기" 메인 버튼
+        1. 히어로 메인 최상단 배너 & 주요 이동 버튼
         ========================================
       */}
       <section className="relative overflow-hidden bg-white/70 backdrop-blur-md rounded-4xl p-8 sm:p-12 shadow-pastel-soft border-2 border-white/80 flex flex-col items-center text-center">
         
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-100 via-purple-100 to-sky-100 border border-pink-200/50 shadow-sm text-xs font-bold text-pink-700 mb-6 hover:scale-105 transition-transform cursor-default">
           <Sparkles className="w-4 h-4 text-pink-500 animate-bounce" />
-          <span>Cherish Math Bar - 고등학생을 위한 파스텔 수학 코딩</span>
+          <span>Cherish Math Bar - 파스텔 AI 수학 코딩 플랫폼</span>
         </div>
 
         <h1 className="font-jua text-4xl sm:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500 bg-clip-text text-transparent mb-4 leading-tight">
@@ -186,22 +188,30 @@ export default function HomePage() {
           <span className="text-pink-600 font-bold underline decoration-pink-300 decoration-wavy">
             CHERRY Math Bar
           </span>
-          에서 무작위 순서쌍 점을 찍고, 그 점들을 100% 통과하는 알록달록 다항함수 그래프를 탐구해보세요!
+          에서 무작위 순서쌍 다항함수를 탐구하고, <strong>체리 AI 수학 챗봇🍒</strong>에게 궁금한 수학 질문을 바로 해결해보세요!
         </p>
 
         {/* 
-          [핵심 요구사항] "함수의 그래프 알아보기" 메인 접속 버튼
-          누르면 하단 #graph-explorer 프로그램 영역으로 이동합니다!
+          [핵심 요구사항] 메인 액션 버튼 그룹
         */}
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <button
             type="button"
-            onClick={scrollToGraphProgram}
-            className="group relative inline-flex items-center justify-center gap-3 px-10 py-4.5 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500 text-white font-extrabold text-lg shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+            onClick={() => scrollToSection("graph-explorer")}
+            className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500 text-white font-extrabold text-base sm:text-lg shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
           >
-            <LineChart className="w-6 h-6 animate-pulse text-yellow-300" />
+            <LineChart className="w-5 h-5 animate-pulse text-yellow-300" />
             <span>📈 함수의 그래프 알아보기</span>
-            <ChevronDown className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
+            <ChevronDown className="w-4 h-4 group-hover:translate-y-1 transition-transform" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => scrollToSection("math-chatbot")}
+            className="group relative inline-flex items-center justify-center gap-2 px-7 py-4 rounded-full bg-white text-purple-700 border-2 border-purple-200 font-extrabold text-base shadow-sm hover:bg-purple-50 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+          >
+            <Bot className="w-5 h-5 text-purple-500 animate-bounce" />
+            <span>🍒 AI 수학 챗봇에게 질문하기</span>
           </button>
         </div>
 
@@ -468,6 +478,29 @@ export default function HomePage() {
 
         </div>
 
+      </section>
+
+      {/* 
+        ========================================
+        4. 🍒 체리 AI 수학 튜터 챗봇 섹션 (#math-chatbot)
+        ========================================
+      */}
+      <section id="math-chatbot" className="scroll-mt-6 flex flex-col gap-4">
+        <div className="flex flex-col items-center text-center gap-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+            <Bot className="w-3.5 h-3.5 text-purple-600" />
+            <span>OPEN_AI_KEY_17 연동</span>
+          </div>
+          <h2 className="font-jua text-3xl font-bold text-slate-700">
+            🍒 체리 AI 수학 튜터 챗봇
+          </h2>
+          <p className="text-sm text-slate-500">
+            수학 공식, 극값 개념, 확률 문제 등 무엇이든 질문하면 체리 선생님이 실시간으로 답변해 드려요!
+          </p>
+        </div>
+
+        {/* 챗봇 컴포넌트 렌더링 */}
+        <MathChatbot />
       </section>
 
       {/* Supabase SQL Editor 모달 */}
