@@ -14,6 +14,15 @@ export interface FitResult {
 }
 
 /**
+ * 좌표 범위 제한 헬퍼 (-7 ~ 7 사이 정수로 제한)
+ */
+export function clampCoordinate(val: number): number {
+  if (isNaN(val)) return 0;
+  const intVal = Math.round(val);
+  return Math.max(-7, Math.min(7, intVal));
+}
+
+/**
  * NxN 선형 방정식 AX = B 가우스 소거법 (Partial Pivoting)
  * 5개 점을 정확히 100% 관통하는 다항식 계수 산출용
  */
@@ -22,7 +31,6 @@ function solveLinearSystem(A: number[][], B: number[]): number[] {
   const M: number[][] = A.map((row, i) => [...row, B[i]]);
 
   for (let i = 0; i < n; i++) {
-    // 피벗팅 (최대 절대값 행 찾기)
     let maxRow = i;
     for (let k = i + 1; k < n; k++) {
       if (Math.abs(M[k][i]) > Math.abs(M[maxRow][i])) {
@@ -87,8 +95,7 @@ function solveLeastSquares(X: number[][], Z: number[]): number[] {
 }
 
 /**
- * 다항식 계수를 읽기 쉬운 표준 수학 수식 문자열로 포맷팅
- * 예: f(x) = 0.15x⁴ - 1.2x³ + 2.5x² - 0.8x + 3
+ * 다항식 계수를 표준 수학 수식 문자열로 포맷팅
  */
 export function formatPolynomial(coeffs: number[]): string {
   const degree = coeffs.length - 1;
@@ -105,7 +112,6 @@ export function formatPolynomial(coeffs: number[]): string {
     const coeff = coeffs[i];
     const power = degree - i;
 
-    // 소수점 2자리 반올림 (계수가 아주 작으면 3자리)
     let roundedCoeff = Math.round(coeff * 100) / 100;
     if (Math.abs(roundedCoeff) < 0.01 && Math.abs(coeff) > 0.0001) {
       roundedCoeff = Math.round(coeff * 1000) / 1000;
@@ -138,8 +144,7 @@ export function formatPolynomial(coeffs: number[]): string {
 }
 
 /**
- * 1. 5개 점을 100% 정확하게 관통하는 사차함수 (f(x) = a x⁴ + b x³ + c x² + d x + e)
- * 5개의 무작위 점 (x_i, y_i)를 통과하도록 5x5 선형 연립방정식 해를 산출합니다.
+ * 1. 5개 점을 100% 관통하는 사차함수 (f(x) = a x⁴ + b x³ + c x² + d x + e)
  */
 export function fitExactQuartic(points: Point[]): FitResult {
   const A: number[][] = points.map((p) => [
@@ -159,7 +164,7 @@ export function fitExactQuartic(points: Point[]): FitResult {
 
   return {
     funcType: "exact_quartic",
-    title: "5개 점 관통 사차함수 (a x⁴ + b x³ + c x² + d x + e)",
+    title: "5개 점 관통 4차함수 (a x⁴ + b x³ + c x² + d x + e)",
     coefficients: coeffs,
     formula: formatPolynomial(coeffs),
     evaluate,
@@ -168,7 +173,6 @@ export function fitExactQuartic(points: Point[]): FitResult {
 
 /**
  * 2. 일반 삼차함수 피팅 (f(x) = a x³ + b x² + c x + d)
- * 최고차항 계수 제한 없이 5개 점에 대해 가장 가깝게 지나가는 최적 삼차함수를 도출합니다.
  */
 export function fitGeneralCubic(points: Point[]): FitResult {
   const X: number[][] = points.map((p) => [
@@ -195,7 +199,7 @@ export function fitGeneralCubic(points: Point[]): FitResult {
 }
 
 /**
- * 3. 최고차항 계수가 1인 사차함수 피팅 (f(x) = x⁴ + a x³ + b x² + c x + d)
+ * 3. 최고차항 계수 1 사차함수 (f(x) = x⁴ + a x³ + b x² + c x + d)
  */
 export function fitMonicQuartic(points: Point[]): FitResult {
   const X: number[][] = points.map((p) => [Math.pow(p.x, 3), Math.pow(p.x, 2), p.x, 1]);
@@ -217,9 +221,9 @@ export function fitMonicQuartic(points: Point[]): FitResult {
 }
 
 /**
- * 무작위 5개 순서쌍 점 생성기 (x값 중복 방지)
+ * -7부터 7까지의 정수 범위 내에서 x값 중복 없는 무작위 5개 순서쌍 점 생성기
  */
-export function generateRandomPoints(count: number = 5, min: number = -6, max: number = 6): Point[] {
+export function generateRandomPoints(count: number = 5, min: number = -7, max: number = 7): Point[] {
   const xValues = new Set<number>();
   while (xValues.size < count) {
     const x = Math.floor(Math.random() * (max - min + 1)) + min;

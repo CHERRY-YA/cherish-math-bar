@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Clock,
   Target,
+  LineChart,
+  ChevronDown,
 } from "lucide-react";
 import {
   Point,
@@ -21,6 +23,7 @@ import {
   fitGeneralCubic,
   fitMonicQuartic,
   generateRandomPoints,
+  clampCoordinate,
 } from "@/utils/mathFitting";
 import CoordinateCanvas from "@/components/CoordinateCanvas";
 import SqlEditorModal from "@/components/SqlEditorModal";
@@ -36,8 +39,8 @@ interface GraphRecord {
 }
 
 export default function HomePage() {
-  // 1. 무작위 5개 순서쌍 점 생성 및 기본 모드를 '5개 점 100% 관통 4차함수(exact_quartic)'로 설정
-  const [points, setPoints] = useState<Point[]>(() => generateRandomPoints(5, -5, 5));
+  // 1. 무작위 5개 순서쌍 점 생성 (-7 ~ 7 정수 범위 제한)
+  const [points, setPoints] = useState<Point[]>(() => generateRandomPoints(5, -7, 7));
   const [funcType, setFuncType] = useState<FuncType>("exact_quartic");
 
   // 모달 및 저장 피드백 Toast 상태
@@ -51,7 +54,7 @@ export default function HomePage() {
   // Supabase 실시간 저장 데이터 목록
   const [recentRecords, setRecentRecords] = useState<GraphRecord[]>([]);
 
-  // 2. 선택된 함수 모드에 따른 다항함수 피팅 (기본 5개 점 100% 완벽 관통)
+  // 2. 선택된 함수 모드에 따른 다항함수 피팅 (5개 점 100% 완벽 관통)
   const fitResult: FitResult = React.useMemo(() => {
     switch (funcType) {
       case "exact_quartic":
@@ -87,19 +90,29 @@ export default function HomePage() {
     fetchRecentRecords();
   }, [fetchRecentRecords]);
 
-  // 무작위 5개 순서쌍 점 갱신
+  // 무작위 5개 순서쌍 점 갱신 (-7 ~ 7 정수)
   const handleRandomize = () => {
-    setPoints(generateRandomPoints(5, -5, 5));
+    setPoints(generateRandomPoints(5, -7, 7));
     setSaveStatus({ type: null, message: "" });
   };
 
-  // 수동 좌표 수정 함수
+  // 수동 좌표 수정 함수 (-7 ~ 7 클램핑 검증)
   const handlePointChange = (index: number, axis: "x" | "y", val: string) => {
-    const num = parseInt(val, 10);
-    if (isNaN(num)) return;
+    const rawNum = parseInt(val, 10);
+    if (isNaN(rawNum)) return;
+    const clampedNum = clampCoordinate(rawNum);
+
     const newPoints = [...points];
-    newPoints[index] = { ...newPoints[index], [axis]: num };
+    newPoints[index] = { ...newPoints[index], [axis]: clampedNum };
     setPoints(newPoints);
+  };
+
+  // '함수의 그래프 알아보기' 버튼 클릭 시 프로그램 영역으로 부드러운 스크롤 이동
+  const scrollToGraphProgram = () => {
+    const element = document.getElementById("graph-explorer");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   // 4. Supabase DB에 그래프 저장 실행
@@ -120,7 +133,7 @@ export default function HomePage() {
     try {
       const { error } = await supabase.from("graph_records").insert([
         {
-          title: `5개 점 관통 ${fitResult.title}`,
+          title: `[-7,7 정수] 5개 점 관통 ${fitResult.title}`,
           func_type: fitResult.funcType,
           formula: fitResult.formula,
           points: points,
@@ -136,7 +149,7 @@ export default function HomePage() {
       } else {
         setSaveStatus({
           type: "success",
-          message: "🎉 5개 점을 통과하는 다항함수가 Supabase DB에 성공적으로 저장되었습니다!",
+          message: "🎉 5개 점(-7~7 정수)을 통과하는 다항함수가 Supabase DB에 성공적으로 저장되었습니다!",
         });
         fetchRecentRecords();
       }
@@ -151,135 +164,186 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 py-4">
+    <div className="flex flex-col gap-10 py-4">
       {/* 
         ========================================
-        1. 히어로 메인 타이틀 & 조작 바
+        1. 히어로 최상단 배너 & "함수의 그래프 알아보기" 메인 버튼
         ========================================
       */}
-      <section className="bg-white/70 backdrop-blur-md rounded-4xl p-6 sm:p-10 shadow-pastel-soft border-2 border-white/80 flex flex-col gap-6">
+      <section className="relative overflow-hidden bg-white/70 backdrop-blur-md rounded-4xl p-8 sm:p-12 shadow-pastel-soft border-2 border-white/80 flex flex-col items-center text-center">
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2 shadow-sm">
-              <Target className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span>5개 점 100% 관통 다항함수 시각화</span>
-            </div>
-            <h1 className="font-jua text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 via-purple-600 to-sky-600 bg-clip-text text-transparent">
-              5개 순서쌍 완벽 관통 삼차/사차함수 🎯
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              입력하신 5개의 점을 <strong>100% 지나가는 4차 다항함수 그래프</strong>를 그리고, 그 수식을 Supabase 데이터베이스에 바로 저장해 보세요!
-            </p>
-          </div>
-
-          {/* 주요 액션 버튼 그룹 */}
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={handleRandomize}
-              className="flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-pastel-pink-deep to-pink-500 text-white font-bold text-sm shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200"
-            >
-              <Shuffle className="w-4 h-4" />
-              <span>🎲 무작위 5개 순서쌍 생성</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsSqlModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-3 rounded-full bg-slate-800 text-pink-200 font-bold text-xs shadow-md hover:scale-105 active:scale-95 transition-all duration-200"
-            >
-              <Code className="w-4 h-4 text-emerald-400" />
-              <span>SQL 쿼리문 보기 &amp; 복사</span>
-            </button>
-          </div>
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-100 via-purple-100 to-sky-100 border border-pink-200/50 shadow-sm text-xs font-bold text-pink-700 mb-6 hover:scale-105 transition-transform cursor-default">
+          <Sparkles className="w-4 h-4 text-pink-500 animate-bounce" />
+          <span>Cherish Math Bar - 고등학생을 위한 파스텔 수학 코딩</span>
         </div>
 
+        <h1 className="font-jua text-4xl sm:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500 bg-clip-text text-transparent mb-4 leading-tight">
+          Cherish Math Bar 🍬
+        </h1>
+
+        <p className="max-w-2xl text-base sm:text-xl text-slate-600 font-medium leading-relaxed mb-8">
+          수학 공식이 어렵고 딱딱하다고 느꼈나요? <br className="hidden sm:block" />
+          <span className="text-pink-600 font-bold underline decoration-pink-300 decoration-wavy">
+            CHERRY Math Bar
+          </span>
+          에서 무작위 순서쌍 점을 찍고, 그 점들을 100% 통과하는 알록달록 다항함수 그래프를 탐구해보세요!
+        </p>
+
         {/* 
-          ========================================
-          2. 함수 모드 탭 & 순서쌍 입력기
-          ========================================
+          [핵심 요구사항] "함수의 그래프 알아보기" 메인 접속 버튼
+          누르면 하단 #graph-explorer 프로그램 영역으로 이동합니다!
         */}
-        <div className="flex flex-col gap-4 bg-pastel-pink-light/60 p-4 sm:p-6 rounded-3xl border border-pink-200/60">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <button
+            type="button"
+            onClick={scrollToGraphProgram}
+            className="group relative inline-flex items-center justify-center gap-3 px-10 py-4.5 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-sky-500 text-white font-extrabold text-lg shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+          >
+            <LineChart className="w-6 h-6 animate-pulse text-yellow-300" />
+            <span>📈 함수의 그래프 알아보기</span>
+            <ChevronDown className="w-5 h-5 group-hover:translate-y-1 transition-transform" />
+          </button>
+        </div>
+
+      </section>
+
+      {/* 
+        ========================================
+        2. 5개 순서쌍 다항함수 실시간 프로그램 영역 (#graph-explorer)
+        ========================================
+      */}
+      <section id="graph-explorer" className="scroll-mt-6 flex flex-col gap-6">
+        
+        <div className="bg-white/80 backdrop-blur-md rounded-4xl p-6 sm:p-10 shadow-pastel-soft border-2 border-pink-100 flex flex-col gap-6">
           
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-              <Calculator className="w-4 h-4 text-pink-500" />
-              <span>함수 모델 선택:</span>
-            </span>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2 shadow-sm">
+                <Target className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                <span>-7 ~ 7 정수 좌표 100% 관통 프로그램</span>
+              </div>
+              <h2 className="font-jua text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-600 via-purple-600 to-sky-600 bg-clip-text text-transparent">
+                5개 순서쌍 관통 삼차/사차함수 탐구 🎯
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                <strong>x, y 좌표는 -7부터 7까지 정수만 가능</strong>합니다. 5개 점을 무작위로 생성하거나 직접 입력해 보세요!
+              </p>
+            </div>
 
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {/* 주요 액션 버튼 그룹 */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => setFuncType("exact_quartic")}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
-                  funcType === "exact_quartic"
-                    ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md ring-2 ring-pink-300"
-                    : "bg-white text-slate-600 hover:bg-pink-100"
-                }`}
+                onClick={handleRandomize}
+                className="flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-pastel-pink-deep to-pink-500 text-white font-bold text-sm shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200"
               >
-                🎯 5개 점 100% 관통 (4차함수)
+                <Shuffle className="w-4 h-4" />
+                <span>🎲 무작위 5개 순서쌍 생성 (-7~7)</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setFuncType("general_cubic")}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
-                  funcType === "general_cubic"
-                    ? "bg-gradient-to-r from-purple-500 to-sky-500 text-white shadow-md ring-2 ring-purple-300"
-                    : "bg-white text-slate-600 hover:bg-purple-100"
-                }`}
+                onClick={() => setIsSqlModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-3 rounded-full bg-slate-800 text-pink-200 font-bold text-xs shadow-md hover:scale-105 active:scale-95 transition-all duration-200"
               >
-                🔮 일반 삼차함수 (a x³ + b x² + c x + d)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFuncType("monic_quartic")}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
-                  funcType === "monic_quartic"
-                    ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white shadow-md"
-                    : "bg-white text-slate-600 hover:bg-sky-100"
-                }`}
-              >
-                ✨ 최고차항 계수 1 (사차함수)
+                <Code className="w-4 h-4 text-emerald-400" />
+                <span>SQL 쿼리문 보기 &amp; 복사</span>
               </button>
             </div>
           </div>
 
-          {/* 5개 순서쌍 점 좌표 수동 편집기 */}
-          <div className="flex flex-col gap-2 pt-2 border-t border-pink-200/50">
-            <span className="text-xs font-semibold text-slate-500">
-              ✏️ 5개 점 좌표 변경 (-8 ~ +8 권장):
-            </span>
+          {/* 함수 모드 탭 & 순서쌍 수동 입력폼 */}
+          <div className="flex flex-col gap-4 bg-pastel-pink-light/60 p-4 sm:p-6 rounded-3xl border border-pink-200/60">
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                <Calculator className="w-4 h-4 text-pink-500" />
+                <span>함수 모델 선택:</span>
+              </span>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {points.map((p, idx) => (
-                <div
-                  key={`point-input-${idx}`}
-                  className="bg-white rounded-2xl p-2.5 shadow-sm border border-pink-100 flex items-center justify-between gap-1 text-xs"
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setFuncType("exact_quartic")}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
+                    funcType === "exact_quartic"
+                      ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md ring-2 ring-pink-300"
+                      : "bg-white text-slate-600 hover:bg-pink-100"
+                  }`}
                 >
-                  <span className="font-bold text-pink-600 font-mono">P{idx + 1}</span>
-                  <div className="flex items-center gap-1 font-mono">
-                    <span>(</span>
-                    <input
-                      type="number"
-                      value={p.x}
-                      onChange={(e) => handlePointChange(idx, "x", e.target.value)}
-                      className="w-8 text-center bg-slate-100 rounded-md font-bold text-slate-700 p-0.5"
-                    />
-                    <span>,</span>
-                    <input
-                      type="number"
-                      value={p.y}
-                      onChange={(e) => handlePointChange(idx, "y", e.target.value)}
-                      className="w-8 text-center bg-pink-50 rounded-md font-bold text-pink-700 p-0.5"
-                    />
-                    <span>)</span>
-                  </div>
-                </div>
-              ))}
+                  🎯 5개 점 100% 관통 (4차함수)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFuncType("general_cubic")}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
+                    funcType === "general_cubic"
+                      ? "bg-gradient-to-r from-purple-500 to-sky-500 text-white shadow-md ring-2 ring-purple-300"
+                      : "bg-white text-slate-600 hover:bg-purple-100"
+                  }`}
+                >
+                  🔮 일반 삼차함수 (a x³ + b x² + c x + d)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFuncType("monic_quartic")}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 hover:scale-105 ${
+                    funcType === "monic_quartic"
+                      ? "bg-gradient-to-r from-sky-500 to-emerald-500 text-white shadow-md"
+                      : "bg-white text-slate-600 hover:bg-sky-100"
+                  }`}
+                >
+                  ✨ 최고차항 계수 1 (사차함수)
+                </button>
+              </div>
             </div>
+
+            {/* 5개 순서쌍 점 좌표 수동 편집기 (범위: -7 ~ 7 정수) */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-pink-200/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-600">
+                  ✏️ 5개 점 좌표 설정 <strong className="text-pink-600">(-7에서 7까지 정수만 가능)</strong>:
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">min: -7 / max: 7</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                {points.map((p, idx) => (
+                  <div
+                    key={`point-input-${idx}`}
+                    className="bg-white rounded-2xl p-2.5 shadow-sm border border-pink-100 flex items-center justify-between gap-1 text-xs"
+                  >
+                    <span className="font-bold text-pink-600 font-mono">P{idx + 1}</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <span>(</span>
+                      <input
+                        type="number"
+                        min="-7"
+                        max="7"
+                        step="1"
+                        value={p.x}
+                        onChange={(e) => handlePointChange(idx, "x", e.target.value)}
+                        className="w-9 text-center bg-slate-100 rounded-md font-bold text-slate-700 p-0.5 focus:ring-2 focus:ring-pink-300 outline-none"
+                      />
+                      <span>,</span>
+                      <input
+                        type="number"
+                        min="-7"
+                        max="7"
+                        step="1"
+                        value={p.y}
+                        onChange={(e) => handlePointChange(idx, "y", e.target.value)}
+                        className="w-9 text-center bg-pink-50 rounded-md font-bold text-pink-700 p-0.5 focus:ring-2 focus:ring-pink-300 outline-none"
+                      />
+                      <span>)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -288,7 +352,7 @@ export default function HomePage() {
 
       {/* 
         ========================================
-        3. 좌표평면 시각화 & 결과 카드
+        3. 좌표평면 시각화 & Supabase 저장 결과 섹션
         ========================================
       */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -312,11 +376,11 @@ export default function HomePage() {
                 </h3>
               </div>
               <span className="text-xs font-bold text-pink-600 bg-pink-100 px-3 py-1 rounded-full">
-                100% 관통 보장
+                -7 ~ 7 정수 100% 관통
               </span>
             </div>
 
-            {/* 수식 카드리프 */}
+            {/* 수식 표시 카드리프 */}
             <div className="bg-gradient-to-r from-pastel-pink-light via-purple-50 to-pastel-sky-light rounded-2xl p-4 border border-pink-200 text-center">
               <span className="text-xs text-slate-500 font-semibold block mb-1">
                 [{fitResult.title}]
@@ -397,7 +461,7 @@ export default function HomePage() {
               <p className="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 {isSupabaseConfigured()
                   ? "아직 저장된 그래프가 없습니다. 위 [Supabase DB에 저장하기]를 눌러보세요!"
-                  : "Supabase 연동 후 저장한 5개 점 그래프 결과가 여기에 보관됩니다."}
+                  : "Supabase 연동 후 [-7, 7 정수] 그래프 저장 결과가 여기에 보관됩니다."}
               </p>
             )}
           </div>

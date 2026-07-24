@@ -16,17 +16,12 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
   width = 600,
   height = 420,
 }) => {
-  // 1. 좌표평면 가시 범위 계산 (기본 -8 ~ +8, 점 위치에 따라 자동 확장)
+  // 1. 좌표평면 가시 범위 (-7 ~ +7 정수 범위 고정)
   const margin = 40;
-  const rawMinX = Math.min(-6, ...points.map((p) => p.x));
-  const rawMaxX = Math.max(6, ...points.map((p) => p.x));
-  const rawMinY = Math.min(-8, ...points.map((p) => p.y));
-  const rawMaxY = Math.max(8, ...points.map((p) => p.y));
-
-  const minX = Math.floor(rawMinX - 1);
-  const maxX = Math.ceil(rawMaxX + 1);
-  const minY = Math.floor(rawMinY - 2);
-  const maxY = Math.ceil(rawMaxY + 2);
+  const minX = -7.5;
+  const maxX = 7.5;
+  const minY = -7.5;
+  const maxY = 7.5;
 
   // 수학 좌표 (x, y) -> SVG 화면 Pixel 좌표 (px, py) 변환 함수
   const toPixelX = (x: number): number => {
@@ -41,32 +36,31 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
   const originPx = toPixelX(0);
   const originPy = toPixelY(0);
 
-  // 2. 격자 그리드 및 눈금 라벨 생성
+  // 2. [-7, 7] 범위의 정수 눈금 라벨 생성
   const xTicks = useMemo(() => {
     const ticks: number[] = [];
-    for (let x = Math.ceil(minX); x <= Math.floor(maxX); x++) {
+    for (let x = -7; x <= 7; x++) {
       if (x !== 0) ticks.push(x);
     }
     return ticks;
-  }, [minX, maxX]);
+  }, []);
 
   const yTicks = useMemo(() => {
     const ticks: number[] = [];
-    for (let y = Math.ceil(minY); y <= Math.floor(maxY); y += 2) {
-      if (y !== 0) ticks.push(y);
+    for (let y = -7; y <= 7; y++) {
+      if (y !== 0 && y % 2 === 0) ticks.push(y); // Y축은 2단위 간격 표시
     }
     return ticks;
-  }, [minY, maxY]);
+  }, []);
 
   // 3. 다항함수 곡선 SVG Path 계산
   const pathD = useMemo(() => {
-    const step = (maxX - minX) / 200;
+    const step = (maxX - minX) / 250;
     const pathPoints: { px: number; py: number }[] = [];
 
     for (let x = minX; x <= maxX; x += step) {
       try {
         const y = fitResult.evaluate(x);
-        // y값이 터무니없이 커지지 않는 범위 내에서만 드로잉
         if (!isNaN(y) && isFinite(y) && y >= minY - 50 && y <= maxY + 50) {
           pathPoints.push({
             px: toPixelX(x),
@@ -83,15 +77,15 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
     return pathPoints.reduce((acc, p, idx) => {
       return idx === 0 ? `M ${p.px} ${p.py}` : `${acc} L ${p.px} ${p.py}`;
     }, "");
-  }, [minX, maxX, minY, maxY, fitResult]);
+  }, [fitResult]);
 
   return (
-    <div className="relative w-full overflow-hidden bg-white/90 backdrop-blur-md rounded-3xl p-4 shadow-pastel-soft border-2 border-pastel-pink/50 flex flex-col items-center">
+    <div className="relative w-full overflow-hidden bg-white/95 backdrop-blur-md rounded-3xl p-4 shadow-pastel-soft border-2 border-pastel-pink/50 flex flex-col items-center">
       
-      {/* 캔버스 상단 함수식 뱃지 */}
-      <div className="w-full flex items-center justify-between px-2 mb-2">
+      {/* 캔버스 상단 범주 및 함수식 뱃지 */}
+      <div className="w-full flex items-center justify-between px-2 mb-2 flex-wrap gap-2">
         <span className="text-xs font-bold text-slate-500 bg-pastel-pink-light px-3 py-1 rounded-full border border-pink-200">
-          📍 좌표평면 (x: {minX}~{maxX}, y: {minY}~{maxY})
+          📍 정수 좌표 범위 [-7, 7]
         </span>
         <span className="font-jua text-sm sm:text-base font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-sky-600 bg-clip-text text-transparent">
           {fitResult.formula}
@@ -231,14 +225,13 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
             />
           )}
 
-          {/* 5개 입력 점(Points) 렌더링 */}
+          {/* 5개 정수 입력 점(Points) 렌더링 */}
           {points.map((p, idx) => {
             const px = toPixelX(p.x);
             const py = toPixelY(p.y);
 
             return (
               <g key={`point-${idx}-${p.x}-${p.y}`} className="cursor-pointer group">
-                {/* 점 외곽 펄스 서클 */}
                 <circle
                   cx={px}
                   cy={py}
@@ -247,7 +240,6 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
                   opacity="0.6"
                   className="animate-pulse"
                 />
-                {/* 메인 핑크 점 */}
                 <circle
                   cx={px}
                   cy={py}
@@ -258,7 +250,6 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
                   filter="url(#pinkGlow)"
                   className="transition-transform group-hover:scale-125 duration-200"
                 />
-                {/* 점 순서쌍 좌표 라벨 태그 */}
                 <rect
                   x={px - 20}
                   y={py - 24}
@@ -286,7 +277,7 @@ export const CoordinateCanvas: React.FC<CoordinateCanvasProps> = ({
 
       {/* 하단 점 범례 */}
       <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs font-semibold text-slate-600">
-        <span className="text-slate-400">입력된 5개 순서쌍 점:</span>
+        <span className="text-slate-400">입력된 5개 순서쌍 (-7~7 정수):</span>
         {points.map((p, i) => (
           <span
             key={`legend-${i}`}
