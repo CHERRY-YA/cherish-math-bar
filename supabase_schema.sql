@@ -1,0 +1,45 @@
+-- ====================================================================
+-- CHERRY Math Bar - Supabase SQL Editor 실행 쿼리문
+-- 이 SQL 스크립트를 Supabase 대시보드의 [SQL Editor]에 붙여넣고 [Run]을 누르세요.
+-- ====================================================================
+
+-- 1. graph_records 테이블 생성 (존재하지 않는 경우)
+CREATE TABLE IF NOT EXISTS public.graph_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    title VARCHAR(255) NOT NULL DEFAULT '무작위 5개 점 좌표 함수',
+    func_type VARCHAR(50) NOT NULL, -- 'monic_quartic', 'monic_cubic', 'exact_quartic'
+    formula TEXT NOT NULL,
+    points JSONB NOT NULL, -- [{x: -2, y: 3}, ...]
+    coefficients JSONB NOT NULL, -- [1, a, b, c, d]
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Row Level Security (RLS) 활성화
+ALTER TABLE public.graph_records ENABLE ROW LEVEL SECURITY;
+
+-- 3. 익명 및 인증 사용자의 조회(SELECT) 권한 정책 생성
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'graph_records' AND policyname = 'Allow public read access'
+    ) THEN
+        CREATE POLICY "Allow public read access" ON public.graph_records
+            FOR SELECT USING (true);
+    END IF;
+END $$;
+
+-- 4. 익명 및 인증 사용자의 저장(INSERT) 권한 정책 생성
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'graph_records' AND policyname = 'Allow public insert access'
+    ) THEN
+        CREATE POLICY "Allow public insert access" ON public.graph_records
+            FOR INSERT WITH CHECK (true);
+    END IF;
+END $$;
+
+-- 테이블 코멘트 추가
+COMMENT ON TABLE public.graph_records IS 'Cherish Math Bar - 좌표평면 5개 순서쌍 다항함수 결과 저장 테이블';
