@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Heart, Compass, Bot, Sparkles } from "lucide-react";
+import { Heart, Compass, Bot, Sparkles, Calculator } from "lucide-react";
 
 /**
  * [선생님을 위한 가이드]
@@ -59,6 +59,18 @@ export const Header: React.FC = () => {
           </Link>
 
           <Link
+            href="/quiz"
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 hover:scale-105 ${
+              pathname === "/quiz"
+                ? "bg-amber-100 text-amber-800 shadow-sm"
+                : "text-slate-600 hover:bg-amber-50 hover:text-amber-700"
+            }`}
+          >
+            <Calculator className="w-4 h-4 text-amber-500" />
+            <span>정적분 퀴즈</span>
+          </Link>
+
+          <Link
             href="/chatbot"
             className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 hover:scale-105 ${
               pathname === "/chatbot"
@@ -74,11 +86,11 @@ export const Header: React.FC = () => {
         {/* 우측 상단 솜사탕 포인트 버튼 */}
         <div className="flex items-center gap-2">
           <Link
-            href="/chatbot"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-pastel-mint-deep to-pastel-sky-deep text-slate-800 font-bold text-xs shadow-jelly-mint hover:scale-105 active:scale-95 transition-all duration-200"
+            href="/quiz"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-pastel-pink-deep to-purple-400 text-white font-bold text-xs shadow-jelly hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            <Sparkles className="w-3.5 h-3.5 text-yellow-600 animate-bounce" />
-            <span>AI 질문하기</span>
+            <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-bounce" />
+            <span>퀴즈 도전</span>
           </Link>
         </div>
 
